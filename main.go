@@ -1,21 +1,23 @@
+// main.go
 package main
 
 import (
-	"net/http"
-	"os"
+	"database/sql"
+	"log"
 
-	"github.com/gin-gonic/gin"
+	"github.com/italobbarros/rinha-backend-2024/internal/api"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// Criação de uma instância do Gin
-	router := gin.Default()
+	connStr := "host=localhost port=5432 user=postgres dbname=rinha password=postgres sslmode=disable"
+	var err error
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-	// Definição de uma rota simples
-	router.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Bem-vindo à API Gin!"})
-	})
-
-	// Inicia o servidor na porta 8080
-	router.Run(os.Getenv("API_SERVER_LISTEN"))
+	Api := api.NewApi(db)
+	Api.Run()
 }
