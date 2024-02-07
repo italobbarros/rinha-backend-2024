@@ -14,6 +14,13 @@ import (
 
 func NewApi(db *sql.DB) *Api {
 	clientes := &Clientes{
+		MapInsert: map[int]chan struct{}{
+			1: make(chan struct{}),
+			2: make(chan struct{}),
+			3: make(chan struct{}),
+			4: make(chan struct{}),
+			5: make(chan struct{}),
+		},
 		Map: map[int]map[string]int64{
 			1: {
 				"limite": 100000,
@@ -51,9 +58,9 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-
-	if clienteID > 5 || clienteID <= 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não é um numero"})
+	ClientResult, err := a.Clientes.Get(clienteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
 	}
 	var transacao models.PostTransacaoRequest
@@ -61,6 +68,31 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if transacao.Tipo != "c" && transacao.Tipo != "d" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tipo da transação diferente de \"c\" e \"d\""})
+		return
+	}
+	length := len(transacao.Descricao)
+	if length < 1 || length > 10 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
+		return
+	}
+
+	chanClient, _ := a.Clientes.MapInsert[clienteID]
+	<-chanClient
+	chanClient <- struct{}{}
+	var newSaldo int64
+	if transacao.Tipo == "d" {
+		newSaldo = ClientResult["limite"] - ClientResult["saldo"] - transacao.Valor
+		if newSaldo < 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao iniciar a transação - saldo inconsistente"})
+			return
+		}
+		ClientResult["saldo"] -= newSaldo
+	} else {
+		newSaldo = ClientResult["saldo"] + transacao.Valor
+	}
+	a.Clientes.Update(clienteID, ClientResult["limite"], newSaldo)
 
 	tx, err := a.db.Begin()
 	if err != nil {
@@ -71,6 +103,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		if err := recover(); err != nil {
 			tx.Rollback()
 		}
+		close(chanClient)
 	}()
 
 	_, err = tx.Exec(`
@@ -83,13 +116,11 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		return
 	}
 
-	var novoSaldo float64
-	err = tx.QueryRow(`
+	_, err = tx.Exec(`
 		UPDATE clientes
-		SET saldo = saldo + $1
-		WHERE id = $2
-		RETURNING saldo
-	`, transacao.Valor, clienteID).Scan(&novoSaldo)
+		SET saldo = $1
+		WHERE id = $2;
+	`, ClientResult["saldo"], clienteID)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar o saldo"})
@@ -101,7 +132,10 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Transação cadastrada com sucesso", "novo_saldo": novoSaldo})
+	c.JSON(http.StatusOK, gin.H{
+		"limite": ClientResult["limite"],
+		"saldo":  ClientResult["saldo"],
+	})
 }
 
 func (a *Api) Run() {

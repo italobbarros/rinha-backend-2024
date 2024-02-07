@@ -3,7 +3,7 @@ package api
 import "fmt"
 
 // AddClient adiciona um novo cliente à estrutura
-func (c *Clientes) AddClient(id int, limite int64, saldo int64) {
+func (c *Clientes) Add(id int, limite int64, saldo int64) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 
@@ -20,7 +20,7 @@ func (c *Clientes) AddClient(id int, limite int64, saldo int64) {
 }
 
 // UpdateClient atualiza os valores de limite e saldo para um cliente existente
-func (c *Clientes) UpdateClient(id int, limite int64, saldo int64) {
+func (c *Clientes) Update(id int, limite int64, saldo int64) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 
@@ -34,7 +34,7 @@ func (c *Clientes) UpdateClient(id int, limite int64, saldo int64) {
 	c.Map[id]["saldo"] = saldo
 }
 
-func (c *Clientes) GetClient(id int) (map[string]int64, error) {
+func (c *Clientes) Get(id int) (map[string]int64, error) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 

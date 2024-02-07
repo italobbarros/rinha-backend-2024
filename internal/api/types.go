@@ -11,6 +11,7 @@ type Api struct {
 }
 
 type Clientes struct {
-	Map   map[int]map[string]int64
-	Mutex sync.Mutex
+	MapInsert map[int]chan struct{}
+	Map       map[int]map[string]int64
+	Mutex     sync.Mutex
 }
