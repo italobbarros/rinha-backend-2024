@@ -3,6 +3,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -44,7 +45,9 @@ func NewApi(db *sql.DB) *Api {
 			},
 		},
 	}
-
+	for _, ch := range clientes.MapInsert {
+		close(ch)
+	}
 	return &Api{
 		Clientes: clientes,
 		db:       db,
@@ -77,18 +80,33 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
 		return
 	}
-
 	chanClient, _ := a.Clientes.MapInsert[clienteID]
-	<-chanClient
-	chanClient <- struct{}{}
+	ready := func() bool {
+		select {
+		case <-chanClient:
+			return true
+		case <-time.After(2 * time.Second):
+			return false
+		}
+	}()
+	if !ready {
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
+		return
+	}
+	a.Clientes.MapInsert[clienteID] = make(chan struct{})
+	defer func() {
+		newChanClient, _ := a.Clientes.MapInsert[clienteID]
+		close(newChanClient)
+	}()
 	var newSaldo int64
 	if transacao.Tipo == "d" {
-		newSaldo = ClientResult["limite"] - ClientResult["saldo"] - transacao.Valor
-		if newSaldo < 0 {
+		newSaldoIsValid := ClientResult["limite"] + ClientResult["saldo"] - transacao.Valor
+		fmt.Println(newSaldoIsValid)
+		if newSaldoIsValid < 0 {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao iniciar a transação - saldo inconsistente"})
 			return
 		}
-		ClientResult["saldo"] -= newSaldo
+		newSaldo = ClientResult["saldo"] - transacao.Valor
 	} else {
 		newSaldo = ClientResult["saldo"] + transacao.Valor
 	}
@@ -96,14 +114,12 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 
 	tx, err := a.db.Begin()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar a transação"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Erro ao iniciar a transação: %s", err.Error())})
 		return
 	}
 	defer func() {
-		if err := recover(); err != nil {
-			tx.Rollback()
-		}
-		close(chanClient)
+		newChanClient, _ := a.Clientes.MapInsert[clienteID]
+		close(newChanClient)
 	}()
 
 	_, err = tx.Exec(`
@@ -120,7 +136,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		UPDATE clientes
 		SET saldo = $1
 		WHERE id = $2;
-	`, ClientResult["saldo"], clienteID)
+	`, newSaldo, clienteID)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar o saldo"})
@@ -131,7 +147,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao commitar a transação"})
 		return
 	}
-
+	ClientResult["saldo"] = newSaldo
 	c.JSON(http.StatusOK, gin.H{
 		"limite": ClientResult["limite"],
 		"saldo":  ClientResult["saldo"],
@@ -140,6 +156,21 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 
 func (a *Api) Run() {
 	router := gin.Default()
+	router.Use(corsHandler) // Adicionar o middleware CORS
+
 	router.POST("/clientes/:id/transacoes", a.cadastrarTransacao)
-	router.Run(":8080")
+	router.Run("0.0.0.0:9990") //os.Getenv("API_SERVER_LISTEN")
+}
+
+func corsHandler(c *gin.Context) {
+	// Configurar cabeçalhos CORS
+	c.Header("Access-Control-Allow-Origin", "*") // Permitir qualquer origem
+	c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+	c.Header("Content-Type", "application/json")
+
+	if c.Request.Method == http.MethodOptions {
+		c.JSON(http.StatusOK, gin.H{})
+		return
+	}
 }
