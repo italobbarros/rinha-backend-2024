@@ -4,15 +4,15 @@ CREATE TABLE clientes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255),
     limite INT,
-    saldo DECIMAL(20, 2)
+    saldo INT
 );
 
 
 -- Criação da tabela de histórico de transações
 CREATE TABLE historico_transacoes (
-    id_transacao SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     id_cliente INT REFERENCES clientes(id),
-    valor DECIMAL(10, 2),
+    valor INT,
     tipo CHAR(1), -- 'c' para crédito, 'd' para débito
     descricao VARCHAR(10),
     data_transacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
