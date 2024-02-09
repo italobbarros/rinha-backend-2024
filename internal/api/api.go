@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/italobbarros/rinha-backend-2024/docs"
 	"github.com/italobbarros/rinha-backend-2024/internal/models"
 	_ "github.com/lib/pq"
 )
@@ -117,8 +116,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	var newSaldo int64
 	if transacao.Tipo == "d" {
 		newSaldoIsValid := ClientResult["limite"] + ClientResult["saldo"] - transacao.Valor
-		fmt.Println(newSaldoIsValid)
-		if newSaldoIsValid < 0 {
+		if newSaldoIsValid > 0 {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao iniciar a transação - saldo inconsistente"})
 			return
 		}
@@ -126,6 +124,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	} else {
 		newSaldo = ClientResult["saldo"] + transacao.Valor
 	}
+
 	a.Clientes.Update(clienteID, ClientResult["limite"], newSaldo)
 
 	tx, err := a.db.Begin()
@@ -192,34 +191,35 @@ func (a *Api) getExtrato(c *gin.Context) {
 		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
 		return
 	}
-
-	rows, err := a.db.Query("SELECT  valor,tipo,descricao,data_transacao FROM historico_transacoes WHERE cliente_id = $1 ORDER BY id DESC LIMIT 10", clienteID)
+	rows, err := a.db.Query("SELECT valor,tipo,descricao,data_transacao FROM historico_transacoes WHERE id_cliente = $1 ORDER BY id DESC LIMIT 10 FOR UPDATE;", clienteID)
 	if err != nil {
-		//log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 	defer rows.Close()
 
 	// Itere sobre as linhas e armazene as transações em uma slice
-	var histTransacoes []models.HistTransacao
+	var histTransacoes []models.GetHistTransacaoSuccess
 	for rows.Next() {
-		var t models.HistTransacao
+		var t models.GetHistTransacaoSuccess
 		if err := rows.Scan(&t.Valor, &t.Tipo, &t.Descricao, &t.DataTransacao); err != nil {
 			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 			return
 		}
 		histTransacoes = append(histTransacoes, t)
 	}
-
+	log.Println(histTransacoes)
 	// Verifique se houve algum erro durante o processamento das linhas
 	if err := rows.Err(); err != nil {
 		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"saldo": gin.H{
 			"total":        ClientResult["saldo"],
-			"data_extrato": time.Now().Format(time.RFC3339Nano),
+			"data_extrato": time.Now(),
 			"limite":       ClientResult["limite"],
 		},
 		"ultimas_transacoes": histTransacoes})
