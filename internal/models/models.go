@@ -10,7 +10,7 @@ type Cliente struct {
 }
 
 // Transacao representa a estrutura da tabela historico_transacoes
-type Transacao struct {
+type HistTransacao struct {
 	ID            int       `json:"id_transacao"`
 	IDCliente     int       `json:"id_cliente"`
 	Valor         float64   `json:"valor"`
