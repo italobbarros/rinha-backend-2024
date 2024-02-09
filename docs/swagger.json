@@ -1,0 +1,105 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/clientes/{id}/transacoes": {
+            "post": {
+                "description": "Cadastra uma nova transação associada a um cliente pelo ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transacoes"
+                ],
+                "summary": "Cadastra uma transação",
+                "operationId": "cadastrar-transacao",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "ID do Cliente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Detalhes da Transação",
+                        "name": "transacao",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PostTransacaoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostTransacaoResponseSuccess"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostTransacaoResponseBadRequest"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostTransacaoResponseNotFound"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.PostTransacaoRequest": {
+            "type": "object",
+            "properties": {
+                "descricao": {
+                    "type": "string"
+                },
+                "tipo": {
+                    "type": "string"
+                },
+                "valor": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.PostTransacaoResponseBadRequest": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string",
+                    "example": "Algum outro erro.."
+                }
+            }
+        },
+        "models.PostTransacaoResponseNotFound": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string",
+                    "example": "ID do cliente não existe"
+                }
+            }
+        },
+        "models.PostTransacaoResponseSuccess": {
+            "type": "object",
+            "properties": {
+                "limite": {
+                    "type": "integer"
+                },
+                "saldo": {
+                    "type": "integer"
+                }
+            }
+        }
+    }
+}

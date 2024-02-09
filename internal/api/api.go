@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/italobbarros/rinha-backend-2024/docs"
 	"github.com/italobbarros/rinha-backend-2024/internal/models"
 	_ "github.com/lib/pq"
 )
@@ -55,6 +56,19 @@ func NewApi(db *sql.DB) *Api {
 	}
 }
 
+// cadastrarTransacao cadastra uma nova transação para um cliente específico.
+//
+// @Summary Cadastra uma transação
+// @Description Cadastra uma nova transação associada a um cliente pelo ID.
+// @ID cadastrar-transacao
+// @Tags Transacoes
+// @Produce json
+// @Param id path int true "ID do Cliente" Format(int64)
+// @Param transacao body models.PostTransacaoRequest true "Detalhes da Transação"
+// @Success 200 {object} models.PostTransacaoResponseSuccess
+// @Failure 400 {object} models.PostTransacaoResponseBadRequest
+// @Failure 404 {object} models.PostTransacaoResponseNotFound
+// @Router /clientes/{id}/transacoes [post]
 func (a *Api) cadastrarTransacao(c *gin.Context) {
 	clienteIDStr := c.Param("id")
 	clienteID, err := strconv.Atoi(clienteIDStr)
@@ -160,6 +174,7 @@ func (a *Api) Run() {
 	router.Use(corsHandler) // Adicionar o middleware CORS
 
 	router.POST("/clientes/:id/transacoes", a.cadastrarTransacao)
+
 	router.Run(os.Getenv("API_SERVER_LISTEN")) //os.Getenv("API_SERVER_LISTEN")
 }
 
