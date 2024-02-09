@@ -16,5 +16,5 @@ type Transacao struct {
 	Valor         float64   `json:"valor"`
 	Tipo          string    `json:"tipo"`
 	Descricao     string    `json:"descricao"`
-	DataTransacao time.Time `json:"data_transacao"`
+	DataTransacao time.Time `json:"realizada_em"`
 }

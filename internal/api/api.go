@@ -4,6 +4,7 @@ package api
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -132,10 +133,6 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Erro ao iniciar a transação: %s", err.Error())})
 		return
 	}
-	defer func() {
-		newChanClient, _ := a.Clientes.MapInsert[clienteID]
-		close(newChanClient)
-	}()
 
 	_, err = tx.Exec(`
 		INSERT INTO historico_transacoes (id_cliente, valor, tipo, descricao, data_transacao)
@@ -169,10 +166,70 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	})
 }
 
+func (a *Api) getExtrato(c *gin.Context) {
+	clienteIDStr := c.Param("id")
+	clienteID, err := strconv.Atoi(clienteIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
+		return
+	}
+	ClientResult, err := a.Clientes.Get(clienteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
+		return
+	}
+
+	chanClient, _ := a.Clientes.MapInsert[clienteID]
+	ready := func() bool {
+		select {
+		case <-chanClient:
+			return true
+		case <-time.After(2 * time.Second):
+			return false
+		}
+	}()
+	if !ready {
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
+		return
+	}
+
+	rows, err := a.db.Query("SELECT  valor,tipo,descricao,data_transacao FROM historico_transacoes WHERE cliente_id = $1 ORDER BY id DESC LIMIT 10", clienteID)
+	if err != nil {
+		//log.Println(err)
+		return
+	}
+	defer rows.Close()
+
+	// Itere sobre as linhas e armazene as transações em uma slice
+	var histTransacoes []models.HistTransacao
+	for rows.Next() {
+		var t models.HistTransacao
+		if err := rows.Scan(&t.Valor, &t.Tipo, &t.Descricao, &t.DataTransacao); err != nil {
+			log.Println(err)
+			return
+		}
+		histTransacoes = append(histTransacoes, t)
+	}
+
+	// Verifique se houve algum erro durante o processamento das linhas
+	if err := rows.Err(); err != nil {
+		log.Println(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"saldo": gin.H{
+			"total":        ClientResult["saldo"],
+			"data_extrato": time.Now().Format(time.RFC3339Nano),
+			"limite":       ClientResult["limite"],
+		},
+		"ultimas_transacoes": histTransacoes})
+}
+
 func (a *Api) Run() {
 	router := gin.Default()
 	router.Use(corsHandler) // Adicionar o middleware CORS
 
+	router.GET("/clientes/:id/extrato", a.getExtrato)
 	router.POST("/clientes/:id/transacoes", a.cadastrarTransacao)
 
 	router.Run(os.Getenv("API_SERVER_LISTEN")) //os.Getenv("API_SERVER_LISTEN")
