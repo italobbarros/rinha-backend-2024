@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -159,7 +160,7 @@ func (a *Api) Run() {
 	router.Use(corsHandler) // Adicionar o middleware CORS
 
 	router.POST("/clientes/:id/transacoes", a.cadastrarTransacao)
-	router.Run("0.0.0.0:9990") //os.Getenv("API_SERVER_LISTEN")
+	router.Run(os.Getenv("API_SERVER_LISTEN")) //os.Getenv("API_SERVER_LISTEN")
 }
 
 func corsHandler(c *gin.Context) {

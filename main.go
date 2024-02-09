@@ -3,21 +3,26 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"github.com/italobbarros/rinha-backend-2024/internal/api"
 	_ "github.com/lib/pq"
 )
 
 func main() {
-	connStr := "host=localhost port=5432 user=postgres dbname=rinha password=postgres sslmode=disable"
+	connStr := fmt.Sprintf("host=%s port='5432' user='rinha' dbname='rinha' password='rinha' sslmode=disable", os.Getenv("DB_HOSTNAME"))
 	var err error
+	time.Sleep(10 * time.Second)
 	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
+	for err != nil {
+		log.Println(err)
+		time.Sleep(1 * time.Second)
+		db, err = sql.Open("postgres", connStr)
 	}
 	defer db.Close()
-
 	Api := api.NewApi(db)
 	Api.Run()
 }
