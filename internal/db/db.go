@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/italobbarros/rinha-backend-2024/internal/models"
@@ -31,6 +32,7 @@ func GetClientes(db *sql.DB) ([]models.Cliente, error) {
 }
 
 func UpdateTransationClient(tx *sql.Tx, clientId int, transacao *models.PostTransacaoRequest, newSaldo int64, clientDb *models.Cliente) error {
+	fmt.Println("UpdateTransationClient clientId:", clientId)
 
 	_, err := tx.Exec(`
 		INSERT INTO historico_transacoes (id_cliente, valor, tipo, descricao, data_transacao)
@@ -57,7 +59,7 @@ func UpdateTransationClient(tx *sql.Tx, clientId int, transacao *models.PostTran
 
 func GetValueClient(db *sql.DB, clientId int) (*sql.Tx, models.Cliente, error) {
 	var cliente models.Cliente
-
+	fmt.Println("GetValueClient clientId:", clientId)
 	tx, err := db.Begin()
 	if err != nil {
 		return tx, cliente, err
@@ -91,6 +93,7 @@ func GetValueClient(db *sql.DB, clientId int) (*sql.Tx, models.Cliente, error) {
 
 func GetValueAndHist(db *sql.DB, clienteID int) (models.GetExtratoHistResponseSuccess, error) {
 	// Inicia a transação
+	fmt.Println("GetValueAndHist clientId:", clienteID)
 	var response models.GetExtratoHistResponseSuccess
 	tx, err := db.Begin()
 	if err != nil {

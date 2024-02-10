@@ -71,8 +71,8 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-	_, err = a.Clientes.Get(clienteID)
-	if err != nil {
+
+	if clienteID > 5 || clienteID < 1 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
 	}
@@ -90,25 +90,26 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
 		return
 	}
-	ready := func() bool {
-		select {
-		case <-a.Clientes.ObterCanal(clienteID):
-			return true
-		case <-time.After(10 * time.Second):
-			return false
+	/*
+		ready := func() bool {
+			select {
+			case <-a.Clientes.ObterCanal(clienteID):
+				return true
+			case <-time.After(10 * time.Second):
+				return false
+			}
+		}()
+		if !ready {
+			c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
+			return
 		}
-	}()
-	if !ready {
-		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
-		return
-	}
-	defer func() {
-		a.Clientes.LiberarCanal(clienteID)
-	}()
+		defer func() {
+			a.Clientes.LiberarCanal(clienteID)
+		}()*/
 	tx, clientDb, err := postgres.GetValueClient(a.db, clienteID)
 	if err != nil {
 		defer tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Erro: %s", err.Error())})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": fmt.Sprintf("Erro: %s", err.Error())})
 		return
 	}
 	var newSaldo int64
@@ -126,7 +127,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	err = postgres.UpdateTransationClient(tx, clienteID, &transacao, newSaldo, &clientDb)
 	if err != nil {
 		defer tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
 		return
 	}
 	//a.Clientes.Update(clienteID, clientDb.Limite, newSaldo)
@@ -144,28 +145,28 @@ func (a *Api) getExtrato(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-	_, err = a.Clientes.Get(clienteID)
-	if err != nil {
+	if clienteID > 5 || clienteID < 1 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
 	}
 
 	//chama endpoint GetClientSync
-	ready := func() bool {
-		select {
-		case <-a.Clientes.ObterCanal(clienteID):
-			return true
-		case <-time.After(10 * time.Second):
-			return false
+	/*
+		ready := func() bool {
+			select {
+			case <-a.Clientes.ObterCanal(clienteID):
+				return true
+			case <-time.After(10 * time.Second):
+				return false
+			}
+		}()
+		if !ready {
+			c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
+			return
 		}
-	}()
-	if !ready {
-		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
-		return
-	}
-	defer func() {
-		a.Clientes.LiberarCanal(clienteID)
-	}()
+		defer func() {
+			a.Clientes.LiberarCanal(clienteID)
+		}()*/
 	r, err := postgres.GetValueAndHist(a.db, clienteID)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err})

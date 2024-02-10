@@ -22,6 +22,8 @@ func main() {
 		time.Sleep(1 * time.Second)
 		db, err = sql.Open("postgres", connStr)
 	}
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(10)
 	defer db.Close()
 	Api := api.NewApi(db)
 	Api.Run()
