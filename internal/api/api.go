@@ -11,45 +11,40 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	postgres "github.com/italobbarros/rinha-backend-2024/internal/db"
 	"github.com/italobbarros/rinha-backend-2024/internal/models"
 	_ "github.com/lib/pq"
 )
 
 func NewApi(db *sql.DB) *Api {
+	c, _ := postgres.GetClientes(db)
+	log.Println(c)
 	clientes := &Clientes{
-		MapInsert: map[int]chan struct{}{
-			1: make(chan struct{}),
-			2: make(chan struct{}),
-			3: make(chan struct{}),
-			4: make(chan struct{}),
-			5: make(chan struct{}),
-		},
+		Sync: make(map[int]chan struct{}),
 		Map: map[int]map[string]int64{
 			1: {
-				"limite": 100000,
-				"saldo":  0,
+				"limite": c[0].Limite,
+				"saldo":  c[0].Saldo,
 			},
 			2: {
-				"limite": 80000,
-				"saldo":  0,
+				"limite": c[1].Limite,
+				"saldo":  c[1].Saldo,
 			},
 			3: {
-				"limite": 1000000,
-				"saldo":  0,
+				"limite": c[2].Limite,
+				"saldo":  c[2].Saldo,
 			},
 			4: {
-				"limite": 10000000,
-				"saldo":  0,
+				"limite": c[3].Limite,
+				"saldo":  c[3].Saldo,
 			},
 			5: {
-				"limite": 500000,
-				"saldo":  0,
+				"limite": c[4].Limite,
+				"saldo":  c[4].Saldo,
 			},
 		},
 	}
-	for _, ch := range clientes.MapInsert {
-		close(ch)
-	}
+
 	return &Api{
 		Clientes: clientes,
 		db:       db,
@@ -76,7 +71,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-	ClientResult, err := a.Clientes.Get(clienteID)
+	_, err = a.Clientes.Get(clienteID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
@@ -95,12 +90,11 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
 		return
 	}
-	chanClient, _ := a.Clientes.MapInsert[clienteID]
 	ready := func() bool {
 		select {
-		case <-chanClient:
+		case <-a.Clientes.ObterCanal(clienteID):
 			return true
-		case <-time.After(2 * time.Second):
+		case <-time.After(10 * time.Second):
 			return false
 		}
 	}()
@@ -108,60 +102,38 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
 		return
 	}
-	a.Clientes.MapInsert[clienteID] = make(chan struct{})
 	defer func() {
-		newChanClient, _ := a.Clientes.MapInsert[clienteID]
-		close(newChanClient)
+		a.Clientes.LiberarCanal(clienteID)
 	}()
+	tx, clientDb, err := postgres.GetValueClient(a.db, clienteID)
+	if err != nil {
+		defer tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Erro: %s", err.Error())})
+		return
+	}
 	var newSaldo int64
 	if transacao.Tipo == "d" {
-		newSaldoIsValid := ClientResult["limite"] + ClientResult["saldo"] - transacao.Valor
-		if newSaldoIsValid > 0 {
+		newSaldoIsValid := clientDb.Limite + clientDb.Saldo - transacao.Valor
+		if newSaldoIsValid < 0 {
+			defer tx.Rollback()
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao iniciar a transação - saldo inconsistente"})
 			return
 		}
-		newSaldo = ClientResult["saldo"] - transacao.Valor
+		newSaldo = clientDb.Saldo - transacao.Valor
 	} else {
-		newSaldo = ClientResult["saldo"] + transacao.Valor
+		newSaldo = clientDb.Saldo + transacao.Valor
 	}
-
-	a.Clientes.Update(clienteID, ClientResult["limite"], newSaldo)
-
-	tx, err := a.db.Begin()
+	err = postgres.UpdateTransationClient(tx, clienteID, &transacao, newSaldo, &clientDb)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Erro ao iniciar a transação: %s", err.Error())})
+		defer tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
 		return
 	}
-
-	_, err = tx.Exec(`
-		INSERT INTO historico_transacoes (id_cliente, valor, tipo, descricao, data_transacao)
-		VALUES ($1, $2, $3, $4, $5)
-	`, clienteID, transacao.Valor, transacao.Tipo, transacao.Descricao, time.Now())
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao inserir a transação"})
-		return
-	}
-
-	_, err = tx.Exec(`
-		UPDATE clientes
-		SET saldo = $1
-		WHERE id = $2;
-	`, newSaldo, clienteID)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar o saldo"})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao commitar a transação"})
-		return
-	}
-	ClientResult["saldo"] = newSaldo
+	//a.Clientes.Update(clienteID, clientDb.Limite, newSaldo)
+	clientDb.Saldo = newSaldo
 	c.JSON(http.StatusOK, gin.H{
-		"limite": ClientResult["limite"],
-		"saldo":  ClientResult["saldo"],
+		"limite": clientDb.Limite,
+		"saldo":  clientDb.Saldo,
 	})
 }
 
@@ -172,18 +144,18 @@ func (a *Api) getExtrato(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-	ClientResult, err := a.Clientes.Get(clienteID)
+	_, err = a.Clientes.Get(clienteID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
 	}
 
-	chanClient, _ := a.Clientes.MapInsert[clienteID]
+	//chama endpoint GetClientSync
 	ready := func() bool {
 		select {
-		case <-chanClient:
+		case <-a.Clientes.ObterCanal(clienteID):
 			return true
-		case <-time.After(2 * time.Second):
+		case <-time.After(10 * time.Second):
 			return false
 		}
 	}()
@@ -191,38 +163,49 @@ func (a *Api) getExtrato(c *gin.Context) {
 		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
 		return
 	}
-	rows, err := a.db.Query("SELECT valor,tipo,descricao,data_transacao FROM historico_transacoes WHERE id_cliente = $1 ORDER BY id DESC LIMIT 10 FOR UPDATE;", clienteID)
+	defer func() {
+		a.Clientes.LiberarCanal(clienteID)
+	}()
+	r, err := postgres.GetValueAndHist(a.db, clienteID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusBadGateway, gin.H{"error": err})
 		return
 	}
-	defer rows.Close()
+	r.Saldo.Data = time.Now()
 
-	// Itere sobre as linhas e armazene as transações em uma slice
-	var histTransacoes []models.GetHistTransacaoSuccess
-	for rows.Next() {
-		var t models.GetHistTransacaoSuccess
-		if err := rows.Scan(&t.Valor, &t.Tipo, &t.Descricao, &t.DataTransacao); err != nil {
-			log.Println(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-		histTransacoes = append(histTransacoes, t)
-	}
-	log.Println(histTransacoes)
-	// Verifique se houve algum erro durante o processamento das linhas
-	if err := rows.Err(); err != nil {
-		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+	c.JSON(http.StatusOK, r)
+}
+
+func (a *Api) GetClientSync(c *gin.Context) {
+	clienteIDStr := c.Param("id")
+	clienteID, err := strconv.Atoi(clienteIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"saldo": gin.H{
-			"total":        ClientResult["saldo"],
-			"data_extrato": time.Now(),
-			"limite":       ClientResult["limite"],
-		},
-		"ultimas_transacoes": histTransacoes})
+	_, err = a.Clientes.Get(clienteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
+		return
+	}
+
+	ready := func() bool {
+		select {
+		case <-a.Clientes.ObterCanal(clienteID):
+			return true
+		case <-time.After(10 * time.Second):
+			return false
+		}
+	}()
+	if !ready {
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "Tempo na requisicao passou mais do que eu gostaria"})
+		return
+	}
+	defer func() {
+		a.Clientes.LiberarCanal(clienteID)
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"detail": "Deu bom!"})
 }
 
 func (a *Api) Run() {

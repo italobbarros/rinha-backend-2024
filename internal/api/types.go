@@ -10,8 +10,12 @@ type Api struct {
 	db       *sql.DB
 }
 
+type ClientSync struct {
+	Mutex   sync.Mutex
+	Channel chan bool
+}
 type Clientes struct {
-	MapInsert map[int]chan struct{}
-	Map       map[int]map[string]int64
-	Mutex     sync.Mutex
+	Sync  map[int]chan struct{}
+	Map   map[int]map[string]int64
+	Mutex sync.Mutex
 }
