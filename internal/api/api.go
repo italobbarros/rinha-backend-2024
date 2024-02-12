@@ -48,7 +48,36 @@ func NewApi(db *sql.DB) *Api {
 	return &Api{
 		Clientes: clientes,
 		db:       db,
+		sync: Sync{
+			semaphore: map[int]chan struct{}{
+				1: make(chan struct{}, 2),
+				2: make(chan struct{}, 2),
+				3: make(chan struct{}, 2),
+				4: make(chan struct{}, 2),
+				5: make(chan struct{}, 2),
+			},
+		},
 	}
+}
+
+func (a *Api) Acquire(id int) {
+	a.sync.mutex.Lock()
+	sync, ok := a.sync.semaphore[id]
+	a.sync.mutex.Unlock()
+	if !ok {
+		return
+	}
+	sync <- struct{}{}
+}
+
+func (a *Api) Release(id int) {
+	a.sync.mutex.Lock()
+	sync, ok := a.sync.semaphore[id]
+	a.sync.mutex.Unlock()
+	if !ok {
+		return
+	}
+	<-sync
 }
 
 // cadastrarTransacao cadastra uma nova transação para um cliente específico.
@@ -68,7 +97,7 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	clienteIDStr := c.Param("id")
 	clienteID, err := strconv.Atoi(clienteIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
 
@@ -78,16 +107,16 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 	}
 	var transacao models.PostTransacaoRequest
 	if err := c.BindJSON(&transacao); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 	if transacao.Tipo != "c" && transacao.Tipo != "d" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tipo da transação diferente de \"c\" e \"d\""})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "tipo da transação diferente de \"c\" e \"d\""})
 		return
 	}
 	length := len(transacao.Descricao)
 	if length < 1 || length > 10 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "descrição possui tamanho menor do que 1 ou maior do que 10"})
 		return
 	}
 	/*
@@ -106,50 +135,44 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		defer func() {
 			a.Clientes.LiberarCanal(clienteID)
 		}()*/
-	tx, clientDb, err := postgres.GetValueClient(a.db, clienteID)
-	if err != nil {
-		defer tx.Rollback()
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": fmt.Sprintf("Erro: %s", err.Error())})
-		return
-	}
-	var newSaldo int64
-	if transacao.Tipo == "d" {
-		newSaldoIsValid := clientDb.Limite + clientDb.Saldo - transacao.Valor
-		if newSaldoIsValid < 0 {
-			defer tx.Rollback()
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao iniciar a transação - saldo inconsistente"})
+	a.Acquire(clienteID)
+	defer a.Release(clienteID)
+	var result models.PostTransacaoResponseSuccess
+	if transacao.Tipo == "c" { //credito
+		result, err = postgres.UpdateCreditTransationClient(a.db, clienteID, &transacao)
+		if err != nil {
+			fmt.Println(err.Error())
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Error "})
 			return
 		}
-		newSaldo = clientDb.Saldo - transacao.Valor
-	} else {
-		newSaldo = clientDb.Saldo + transacao.Valor
+	} else { //debito
+		result, err = postgres.UpdateDebitTransationClient(a.db, clienteID, &transacao)
+		if err != nil {
+			fmt.Println(err.Error())
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
+			return
+		}
+
 	}
-	err = postgres.UpdateTransationClient(tx, clienteID, &transacao, newSaldo, &clientDb)
-	if err != nil {
-		defer tx.Rollback()
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
-		return
-	}
-	//a.Clientes.Update(clienteID, clientDb.Limite, newSaldo)
-	clientDb.Saldo = newSaldo
 	c.JSON(http.StatusOK, gin.H{
-		"limite": clientDb.Limite,
-		"saldo":  clientDb.Saldo,
+		"limite": result.Limite,
+		"saldo":  result.Saldo,
 	})
 }
+
+//a.Clientes.Update(clienteID, clientDb.Limite, newSaldo)
 
 func (a *Api) getExtrato(c *gin.Context) {
 	clienteIDStr := c.Param("id")
 	clienteID, err := strconv.Atoi(clienteIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
 	if clienteID > 5 || clienteID < 1 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ID do cliente não existe"})
 		return
 	}
-
 	//chama endpoint GetClientSync
 	/*
 		ready := func() bool {
@@ -169,7 +192,8 @@ func (a *Api) getExtrato(c *gin.Context) {
 		}()*/
 	r, err := postgres.GetValueAndHist(a.db, clienteID)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err})
+		fmt.Println("ERROR GetValueAndHist error:", err)
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err})
 		return
 	}
 	r.Saldo.Data = time.Now()
@@ -181,7 +205,7 @@ func (a *Api) GetClientSync(c *gin.Context) {
 	clienteIDStr := c.Param("id")
 	clienteID, err := strconv.Atoi(clienteIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID do cliente não é um numero"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "ID do cliente não é um numero"})
 		return
 	}
 	_, err = a.Clientes.Get(clienteID)

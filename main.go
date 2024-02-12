@@ -22,8 +22,19 @@ func main() {
 		time.Sleep(1 * time.Second)
 		db, err = sql.Open("postgres", connStr)
 	}
-	db.SetMaxOpenConns(100)
-	db.SetMaxIdleConns(10)
+	err = db.Ping()
+	if err != nil {
+		for {
+			time.Sleep(5 * time.Second)
+			err := db.Ping()
+			if err == nil {
+				break
+			}
+			db, _ = sql.Open("postgres", connStr)
+		}
+	}
+
+	db.SetMaxOpenConns(50)
 	defer db.Close()
 	Api := api.NewApi(db)
 	Api.Run()

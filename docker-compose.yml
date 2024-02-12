@@ -20,13 +20,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.15"
-          memory: "10MB"
+          cpus: "0.20"
+          memory: "30MB"
 
   rinha-backend-1: 
     build: .
-    image: rinha-backend
-    container_name: rinha-backend-1
+    image: italobbarros/rinha-backend-2024-q1
+    container_name: italobbarros/rinha-backend-2024-q1-1
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8081
@@ -39,12 +39,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: "200MB"
+          cpus: "0.35"
+          memory: "120MB"
 
   rinha-backend-2:
-    image: rinha-backend
-    container_name: rinha-backend-2
+    image: italobbarros/rinha-backend-2024-q1
+    container_name: italobbarros/rinha-backend-2024-q1-2
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8082
@@ -58,8 +58,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: "200MB"
+          cpus: "0.35"
+          memory: "120MB"
 
   db:
     image: postgres:latest
@@ -72,6 +72,8 @@ services:
       - "5431:5432"
     volumes:
       - ./sql/script.sql:/docker-entrypoint-initdb.d/script.sql
+      #- ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c shared_buffers=256MB -c max_connections=200
     networks:
       - rinha2024q1
     deploy:
@@ -81,6 +83,6 @@ services:
           # aqui declarados é de 1.5 unidades de CPU e 550MB
           # de memória. A distribuição feita aqui é apenas
           # um exemplo – distribua como quiser.
-          cpus: "0.35"
-          memory: "140MB"
+          cpus: "0.6"
+          memory: "280MB"
 

@@ -5,9 +5,15 @@ import (
 	"sync"
 )
 
+type Sync struct {
+	mutex     sync.Mutex
+	semaphore map[int]chan struct{}
+}
+
 type Api struct {
 	Clientes *Clientes
 	db       *sql.DB
+	sync     Sync
 }
 
 type ClientSync struct {

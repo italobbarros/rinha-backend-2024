@@ -42,7 +42,7 @@ func (c *Clientes) Get(id int) (map[string]int64, error) {
 		return cliente, nil
 	}
 
-	return nil, fmt.Errorf("Cliente não encontrado")
+	return nil, fmt.Errorf("cliente não encontrado")
 }
 
 func (c *Clientes) ObterCanal(id int) chan struct{} {

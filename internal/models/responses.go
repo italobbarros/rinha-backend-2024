@@ -3,7 +3,7 @@ package models
 import "time"
 
 type PostTransacaoResponseSuccess struct {
-	Limite int   `json:"limite"`
+	Limite int64 `json:"limite"`
 	Saldo  int64 `json:"saldo"`
 }
 
@@ -16,12 +16,12 @@ type GetHistTransacao struct {
 
 type GetTransacao struct {
 	Limite int64     `json:"limite"`
-	Saldo  int64     `json:"saldo"`
+	Saldo  int64     `json:"total"`
 	Data   time.Time `json:"data_extrato"`
 }
 
 type GetExtratoHistResponseSuccess struct {
-	Saldo             GetTransacao
+	Saldo             GetTransacao       `json:"saldo"`
 	UltimasTransacoes []GetHistTransacao `json:"ultimas_transacoes"`
 }
 
