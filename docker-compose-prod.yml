@@ -29,8 +29,6 @@ services:
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8081
-    ports:
-      - "8081:8081"
     depends_on:
       - db
     networks:
@@ -47,8 +45,6 @@ services:
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8082
-    ports:
-      - "8082:8082"
     depends_on:
       - rinha-backend-1
       - db
@@ -67,8 +63,6 @@ services:
       - POSTGRES_PASSWORD=rinha
       - POSTGRES_USER=rinha
       - POSTGRES_DB=rinha
-    ports:
-      - "5431:5432"
     volumes:
       - ./sql/script.sql:/docker-entrypoint-initdb.d/script.sql
       - ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
