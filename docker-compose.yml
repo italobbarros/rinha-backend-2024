@@ -1,8 +1,10 @@
 version: "3"
 
+
 networks:
-  rinha2024q1:
-    external: true
+  default:
+    driver: bridge
+    name: rinha2024q1
 
 services:
   nginx:
@@ -15,67 +17,52 @@ services:
     ports:
         # Obrigatório expor/usar a porta 9999 no load balancer!
       - "9999:9999" 
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
           cpus: "0.20"
-          memory: "30MB"
+          memory: "180MB"
 
   rinha-backend-1: 
-    build: .
-    image: italobbarros/rinha-backend-2024-q1
-    container_name: italobbarros/rinha-backend-2024-q1-1
+    image: italobbarros/rinha-backend-2024-q1:latest
+    container_name: rinha-backend-2024-q1-1
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8081
-    ports:
-      - "8081:8081"
     depends_on:
       - db
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
-          cpus: "0.35"
-          memory: "120MB"
+          cpus: "0.45"
+          memory: "140MB"
 
   rinha-backend-2:
-    image: italobbarros/rinha-backend-2024-q1
-    container_name: italobbarros/rinha-backend-2024-q1-2
+    image: italobbarros/rinha-backend-2024-q1:latest
+    container_name: rinha-backend-2024-q1-2
     environment:
       - DB_HOSTNAME=db
       - API_SERVER_LISTEN=0.0.0.0:8082
-    ports:
-      - "8082:8082"
     depends_on:
       - rinha-backend-1
       - db
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
-          cpus: "0.35"
-          memory: "120MB"
+          cpus: "0.45"
+          memory: "140MB"
 
   db:
-    image: postgres:latest
+    image: postgres:16.2-alpine3.19
     hostname: db
     environment:
       - POSTGRES_PASSWORD=rinha
       - POSTGRES_USER=rinha
       - POSTGRES_DB=rinha
-    ports:
-      - "5431:5432"
     volumes:
       - ./sql/script.sql:/docker-entrypoint-initdb.d/script.sql
-      #- ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c shared_buffers=256MB -c max_connections=200
-    networks:
-      - rinha2024q1
+      - ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf'
     deploy:
       resources:
         limits:
@@ -83,6 +70,6 @@ services:
           # aqui declarados é de 1.5 unidades de CPU e 550MB
           # de memória. A distribuição feita aqui é apenas
           # um exemplo – distribua como quiser.
-          cpus: "0.6"
-          memory: "280MB"
+          cpus: "0.4"
+          memory: "90MB"
 

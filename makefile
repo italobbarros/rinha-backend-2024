@@ -13,7 +13,7 @@ build:
 # Alvo para iniciar o Docker Compose
 up:
 	@echo "Iniciando o Docker Compose..."
-	docker-compose -f docker-compose-prod.yml up -d
+	docker-compose up -d
 
 # Alvo para executar o script de teste
 test:
@@ -23,7 +23,7 @@ test:
 # Alvo para parar e remover os contêineres Docker
 down:
 	@echo "Parando e removendo os contêineres Docker..."
-	docker-compose -f docker-compose-prod.yml down
+	docker-compose down
 
 # Alvo para construir, iniciar e testar
 build-test: build up test down
