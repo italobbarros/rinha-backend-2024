@@ -1,8 +1,10 @@
 version: "3"
 
+
 networks:
-  rinha2024q1:
-    external: true
+  default:
+    driver: bridge
+    name: rinha2024q1
 
 services:
   nginx:
@@ -15,8 +17,6 @@ services:
     ports:
         # Obrigatório expor/usar a porta 9999 no load balancer!
       - "9999:9999" 
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
@@ -31,8 +31,6 @@ services:
       - API_SERVER_LISTEN=0.0.0.0:8081
     depends_on:
       - db
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
@@ -48,8 +46,6 @@ services:
     depends_on:
       - rinha-backend-1
       - db
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
@@ -57,7 +53,7 @@ services:
           memory: "140MB"
 
   db:
-    image: postgres:latest
+    image: postgres:16.2-alpine3.19
     hostname: db
     environment:
       - POSTGRES_PASSWORD=rinha
@@ -67,8 +63,6 @@ services:
       - ./sql/script.sql:/docker-entrypoint-initdb.d/script.sql
       - ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
     command: postgres -c 'config_file=/etc/postgresql/postgresql.conf'
-    networks:
-      - rinha2024q1
     deploy:
       resources:
         limits:
