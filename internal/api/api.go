@@ -4,7 +4,6 @@ package api
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,8 +16,8 @@ import (
 )
 
 func NewApi(db *sql.DB) *Api {
+
 	c, _ := postgres.GetClientes(db)
-	log.Println(c)
 	clientes := &Clientes{
 		Sync: make(map[int]chan struct{}),
 		Map: map[int]map[string]int64{
@@ -44,17 +43,17 @@ func NewApi(db *sql.DB) *Api {
 			},
 		},
 	}
-
+	postgres.Init(db)
 	return &Api{
 		Clientes: clientes,
 		db:       db,
 		sync: Sync{
 			semaphore: map[int]chan struct{}{
-				1: make(chan struct{}, 2),
-				2: make(chan struct{}, 2),
-				3: make(chan struct{}, 2),
-				4: make(chan struct{}, 2),
-				5: make(chan struct{}, 2),
+				1: make(chan struct{}, 1),
+				2: make(chan struct{}, 1),
+				3: make(chan struct{}, 1),
+				4: make(chan struct{}, 1),
+				5: make(chan struct{}, 1),
 			},
 		},
 	}
@@ -68,6 +67,7 @@ func (a *Api) Acquire(id int) {
 		return
 	}
 	sync <- struct{}{}
+
 }
 
 func (a *Api) Release(id int) {
@@ -135,20 +135,21 @@ func (a *Api) cadastrarTransacao(c *gin.Context) {
 		defer func() {
 			a.Clientes.LiberarCanal(clienteID)
 		}()*/
+
 	a.Acquire(clienteID)
 	defer a.Release(clienteID)
 	var result models.PostTransacaoResponseSuccess
 	if transacao.Tipo == "c" { //credito
 		result, err = postgres.UpdateCreditTransationClient(a.db, clienteID, &transacao)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("UpdateCreditTransationClient clienteId:", clienteID, err.Error())
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Error "})
 			return
 		}
 	} else { //debito
 		result, err = postgres.UpdateDebitTransationClient(a.db, clienteID, &transacao)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("UpdateDebitTransationClient clienteId:", clienteID, err.Error())
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Erro ao exec a transação -" + err.Error()})
 			return
 		}
@@ -234,6 +235,7 @@ func (a *Api) GetClientSync(c *gin.Context) {
 }
 
 func (a *Api) Run() {
+	defer postgres.Close()
 	router := gin.Default()
 	router.Use(corsHandler) // Adicionar o middleware CORS
 

@@ -4,7 +4,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -18,7 +17,6 @@ func main() {
 	time.Sleep(10 * time.Second)
 	db, err := sql.Open("postgres", connStr)
 	for err != nil {
-		log.Println(err)
 		time.Sleep(1 * time.Second)
 		db, err = sql.Open("postgres", connStr)
 	}
@@ -34,7 +32,7 @@ func main() {
 		}
 	}
 
-	db.SetMaxOpenConns(50)
+	db.SetMaxOpenConns(10)
 	defer db.Close()
 	Api := api.NewApi(db)
 	Api.Run()

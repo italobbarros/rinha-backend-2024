@@ -21,7 +21,7 @@ services:
       resources:
         limits:
           cpus: "0.20"
-          memory: "140MB"
+          memory: "190MB"
 
   rinha-backend-1: 
     image: italobbarros/rinha-backend-2024-q1:latest
@@ -39,7 +39,7 @@ services:
       resources:
         limits:
           cpus: "0.45"
-          memory: "170MB"
+          memory: "150MB"
 
   rinha-backend-2:
     image: italobbarros/rinha-backend-2024-q1:latest
@@ -58,7 +58,7 @@ services:
       resources:
         limits:
           cpus: "0.45"
-          memory: "170MB"
+          memory: "150MB"
 
   db:
     image: postgres:latest
