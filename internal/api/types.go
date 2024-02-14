@@ -22,6 +22,5 @@ type ClientSync struct {
 }
 type Clientes struct {
 	Sync  map[int]chan struct{}
-	Map   map[int]map[string]int64
 	Mutex sync.Mutex
 }

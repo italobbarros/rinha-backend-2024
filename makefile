@@ -1,8 +1,5 @@
 # Makefile
 
-# Define a versão da aplicação
-VERSION := 4.0
-
 # Nome da imagem Docker
 IMAGE_NAME := italobbarros/rinha-backend-2024-q1
 
@@ -27,6 +24,7 @@ DOCKER_COMPOSE_DOWN_CMD := docker-compose -f docker-compose-prod.yml down
 # Alvo padrão (executado ao chamar apenas 'make')
 all: build up test
 
+up-test: up test
 # Alvo para construir a imagem Docker
 build:
 	@echo "Construindo a imagem Docker com a versão $(VERSION)..."
@@ -36,7 +34,6 @@ build:
 up:
 	@echo "Iniciando o Docker Compose..."
 	$(DOCKER_COMPOSE_UP_CMD)
-	sleep 30
 
 # Alvo para executar o script de teste
 test:

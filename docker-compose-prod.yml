@@ -21,7 +21,7 @@ services:
       resources:
         limits:
           cpus: "0.20"
-          memory: "190MB"
+          memory: "180MB"
 
   rinha-backend-1: 
     image: italobbarros/rinha-backend-2024-q1:latest
@@ -39,7 +39,7 @@ services:
       resources:
         limits:
           cpus: "0.45"
-          memory: "150MB"
+          memory: "140MB"
 
   rinha-backend-2:
     image: italobbarros/rinha-backend-2024-q1:latest
@@ -58,7 +58,7 @@ services:
       resources:
         limits:
           cpus: "0.45"
-          memory: "150MB"
+          memory: "140MB"
 
   db:
     image: postgres:latest
@@ -83,5 +83,5 @@ services:
           # de memória. A distribuição feita aqui é apenas
           # um exemplo – distribua como quiser.
           cpus: "0.4"
-          memory: "70MB"
+          memory: "90MB"
 

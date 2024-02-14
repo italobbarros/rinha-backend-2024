@@ -47,6 +47,10 @@ func Init(db *sql.DB) {
 
 }
 
+func DatabaseIsConnected(db *sql.DB) bool {
+	err := db.Ping()
+	return err == nil
+}
 func Close() {
 	insertNewTransactionStmt.Close()
 	updateCreditStmt.Close()
