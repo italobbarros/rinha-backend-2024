@@ -15,6 +15,7 @@ var (
 	updateCreditStmt         *sql.Stmt
 	updateDebitStmt          *sql.Stmt
 	selectExtractStmt        *sql.Stmt
+	selectHistStmt           *sql.Stmt
 )
 
 func Init(db *sql.DB) {
@@ -37,10 +38,13 @@ func Init(db *sql.DB) {
     `)
 
 	selectExtractStmt, _ = db.Prepare(`
-		SELECT c.saldo, c.limite, h.valor, h.tipo, h.descricao, h.data_transacao
+	SELECT c.saldo,c.limite FROM clientes c  WHERE c.id = $1;
+	`)
+
+	selectHistStmt, _ = db.Prepare(`
+		SELECT  h.valor, h.tipo, h.descricao, h.data_transacao
 		FROM historico_transacoes h
-		LEFT JOIN clientes c ON c.id = h.id_cliente
-		WHERE c.id = $1
+		WHERE h.id_cliente = $1
 		ORDER BY h.id DESC
 		LIMIT 10;
 	`)
@@ -111,32 +115,6 @@ func GetClientesById(db *sql.DB, clientId int) (models.GetTransacao, error) {
 		return cliente, err
 	}
 	return cliente, nil
-}
-
-func UpdateTransationClient(tx *sql.Tx, clientId int, transacao *models.PostTransacaoRequest, newSaldo int64, clientDb *models.Cliente) error {
-	fmt.Println("UpdateTransationClient clientId:", clientId)
-
-	_, err := tx.Exec(`
-		INSERT INTO historico_transacoes (id_cliente, valor, tipo, descricao, data_transacao)
-		VALUES ($1, $2, $3, $4, $5)
-	`, clientId, transacao.Valor, transacao.Tipo, transacao.Descricao, time.Now())
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(`
-		UPDATE clientes
-		SET saldo = $1
-		WHERE id = $2
-	`, newSaldo, clientId)
-	if err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func UpdateCreditTransationClient(db *sql.DB, clientId int, transacao *models.PostTransacaoRequest) (models.PostTransacaoResponseSuccess, error) {
@@ -231,40 +209,6 @@ func UpdateDebitTransationClient(db *sql.DB, clientId int, transacao *models.Pos
 	return result, nil
 }
 
-func GetValueClient(db *sql.DB, clientId int) (*sql.Tx, models.Cliente, error) {
-	var cliente models.Cliente
-	fmt.Println("GetValueClient clientId:", clientId)
-	tx, err := db.Begin()
-	if err != nil {
-		return tx, cliente, err
-	}
-
-	// Execute a consulta dentro da transação com FOR UPDATE
-	rows, err := tx.Query("SELECT id, saldo, limite FROM clientes WHERE id = $1 FOR UPDATE;", clientId)
-	if err != nil {
-		return tx, cliente, err
-	}
-	defer rows.Close()
-
-	// Verifique se há pelo menos uma linha
-	if rows.Next() {
-		// Escaneie os valores na struct Cliente
-		if err := rows.Scan(&cliente.ID, &cliente.Saldo, &cliente.Limite); err != nil {
-			return tx, cliente, err
-		}
-	} else {
-		// Se não houver linhas, cliente não encontrado
-		return tx, cliente, sql.ErrNoRows
-	}
-
-	// Verifique se houve algum erro durante o escaneamento
-	if err := rows.Err(); err != nil {
-		return tx, cliente, err
-	}
-
-	return tx, cliente, nil
-}
-
 func GetValueAndHist(db *sql.DB, clienteID int) (models.GetExtratoHistResponseSuccess, error) {
 	fmt.Println("GetValueAndHist clientId:", clienteID)
 	var response models.GetExtratoHistResponseSuccess
@@ -276,8 +220,13 @@ func GetValueAndHist(db *sql.DB, clienteID int) (models.GetExtratoHistResponseSu
 	}
 	defer tx.Rollback()
 
+	rows1 := tx.Stmt(selectExtractStmt).QueryRow(clienteID)
+	if err := rows1.Scan(&response.Saldo.Saldo, &response.Saldo.Limite); err != nil {
+		return response, err
+	}
+
 	// Executa a consulta SQL
-	rows, err := tx.Stmt(selectExtractStmt).Query(clienteID)
+	rows, err := tx.Stmt(selectHistStmt).Query(clienteID)
 	if err != nil {
 		return response, err
 	}
@@ -289,7 +238,7 @@ func GetValueAndHist(db *sql.DB, clienteID int) (models.GetExtratoHistResponseSu
 	// Processa os resultados da consulta
 	for rows.Next() {
 		var t models.GetHistTransacao
-		if err := rows.Scan(&response.Saldo.Saldo, &response.Saldo.Limite, &t.Valor, &t.Tipo, &t.Descricao, &t.DataTransacao); err != nil {
+		if err := rows.Scan(&t.Valor, &t.Tipo, &t.Descricao, &t.DataTransacao); err != nil {
 			return response, err
 		}
 		response.UltimasTransacoes = append(response.UltimasTransacoes, t)
