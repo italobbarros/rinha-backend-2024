@@ -2,9 +2,9 @@
 
 # Alvo padrão (executado ao chamar apenas 'make')
 all: up test
-
 build-test: build up test
 up-test: up test
+
 # Alvo para construir a imagem Docker
 build:
 	@echo "Construindo a imagem Docker com a versão $(VERSION)..."
@@ -25,8 +25,6 @@ down:
 	@echo "Parando e removendo os contêineres Docker..."
 	docker-compose -f docker-compose-prod.yml down
 
-# Alvo para construir, iniciar e testar
-build-test: build up test down
 
 # Alvo para limpar a construção e os contêineres
 clean:

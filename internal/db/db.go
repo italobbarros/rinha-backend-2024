@@ -21,11 +21,11 @@ func Init(db *sql.DB) {
 	// Inicializar prepared statements uma vez ao carregar o pacote
 	insertNewTransactionStmt, _ = db.Prepare(`
         INSERT INTO historico_transacoes (id_cliente, valor, tipo, descricao, data_transacao)
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5);
     `)
 
 	updateCreditStmt, _ = db.Prepare(`
-	UPDATE clientes
+		UPDATE clientes
         SET saldo = saldo + $1
         WHERE id = $2 Returning saldo, limite;
     `)
@@ -42,7 +42,7 @@ func Init(db *sql.DB) {
 		LEFT JOIN clientes c ON c.id = h.id_cliente
 		WHERE c.id = $1
 		ORDER BY h.id DESC
-		LIMIT 10 for update;
+		LIMIT 10;
 	`)
 
 }

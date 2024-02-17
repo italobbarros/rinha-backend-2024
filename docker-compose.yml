@@ -72,8 +72,8 @@ services:
       - "5431:5432"
     volumes:
       - ./sql/script.sql:/docker-entrypoint-initdb.d/script.sql
-      #- ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c shared_buffers=256MB -c max_connections=200
+      - ./sql/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf'
     networks:
       - rinha2024q1
     deploy:

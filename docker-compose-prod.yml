@@ -20,7 +20,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.20"
+          cpus: "0.14"
           memory: "180MB"
 
   rinha-backend-1: 
@@ -34,8 +34,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
-          memory: "140MB"
+          cpus: "0.43"
+          memory: "135MB"
 
   rinha-backend-2:
     image: italobbarros/rinha-backend-2024-q1:latest
@@ -49,8 +49,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
-          memory: "140MB"
+          cpus: "0.43"
+          memory: "135MB"
 
   db:
     image: postgres:16.2-alpine3.19
@@ -70,6 +70,6 @@ services:
           # aqui declarados é de 1.5 unidades de CPU e 550MB
           # de memória. A distribuição feita aqui é apenas
           # um exemplo – distribua como quiser.
-          cpus: "0.4"
-          memory: "90MB"
+          cpus: "0.50"
+          memory: "100MB"
 
